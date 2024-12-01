@@ -1,0 +1,133 @@
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  APP_ENV: "production"
+  API_VERSION: "v1"
+  DB: "endgame"
+  DB_HOST: "db"
+  DB_USER: "john"
+
+
+
+---
+# Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secret
+type: Opaque
+data:
+  # Replace `your-db-password` with the base64-encoded value of DB_PASS
+  DB_PASS: "ZXhhbXBsZQ==" # your-db-password (base64 encoded)
+  # API_KEY: "eW91ci1hcGkta2V5" # your-api-key (base64 encoded)
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      serviceAccountName: backend-sa
+      containers:
+        - name: backend
+          image: funmishade/feedbackapp-api:latest # Make sure to add the appropriate tag (latest or specific version)
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: DB
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: DB_USER
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: DB_HOST
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: DB_PASS
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: "/ready"
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+
+---
+# Horizontal Pod Autoscaler (HPA)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+
+---
+# ClusterIP Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

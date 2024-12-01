@@ -1,0 +1,39 @@
+frontend:
+  - Deployment
+  - HPA
+  - REPLICA
+  - service nodeport
+  - service account
+  - configmap
+  - secret
+
+
+b- backend/API
+  - Deployment
+  - HPA
+  - REPLICA
+  - service CLUSTERIP
+  - service account
+  - configmap
+  - secret
+
+c- db (postgres) 
+  - Statefulset
+  - REPLICA
+  - service clusterip
+  - service account
+  - configmap
+  - secret
+D - db-replication-1
+E- db-replication-2
+
+
+F- redis
+  - Statefulset
+  - REPLICA
+  - service clusterip
+  - service account
+  - configmap
+  - secret
+D - db-replication-1
+E- db-replication-2

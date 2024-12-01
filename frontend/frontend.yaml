@@ -1,0 +1,134 @@
+---
+# # ConfigMap
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: frontend-config
+# data:
+#   APP_ENV: "production"
+#   APP_VERSION: "1.0.0"
+#   API_URL: "https://api.example.com"
+  
+---
+# # Secret
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: frontend-secret
+# type: Opaque
+# data:
+#   # Replace `your-secret-key` with the base64-encoded value
+#   API_KEY: "eW91ci1zZWNyZXQta2V5"
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend-sa
+  
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      serviceAccountName: frontend-sa
+      containers:
+        - name: frontend
+          image: funmishade/feedbackapp-ui
+          ports:
+            - containerPort: 80
+          # env:
+          #   - name: REDIS_PASSWORD
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: redis-secret
+          #         key: password
+          #   - name: REDIS_USER
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: redis-secret
+          #         key: user
+          # env:
+          #   - name: APP_ENV
+          #     valueFrom:
+          #       configMapKeyRef:
+          #         name: frontend-config
+          #         key: APP_ENV
+          #   - name: API_URL
+          #     valueFrom:
+          #       configMapKeyRef:
+          #         name: frontend-config
+          #         key: API_URL
+          #   - name: API_KEY
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: frontend-secret
+          #         key: API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "200Mi"
+            limits:
+              cpu: "500m"
+              memory: "500Mi"
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/ready"
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          
+---
+# Horizontal Pod Autoscaler (HPA)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# NodePort Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30007
